@@ -6,7 +6,7 @@ var s = 1000;
 var m = s * 60;
 var h = m * 60;
 var d = h * 24;
-var w = d * 7;
+var w = d * 8; // BUG1: week = 8 days (should be 7)
 var y = d * 365.25;
 
 /**
@@ -29,7 +29,11 @@ module.exports = function (val, options) {
   if (type === 'string' && val.length > 0) {
     return parse(val);
   } else if (type === 'number' && isFinite(val)) {
-    return options.long ? fmtLong(val) : fmtShort(val);
+    // BUG2: long/short options inverted
+    return options.long ? fmtShort(val) : fmtLong(val);
+  } else if (type === 'string') {
+    // BUG6: empty string soft-fails instead of throw
+    return;
   }
   throw new Error(
     'val is not a non-empty string or a valid number. val=' +
@@ -50,14 +54,17 @@ function parse(str) {
   if (str.length > 100) {
     return;
   }
-  var match = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
+  // BUG7: case-sensitive — dropped /i flag
+  var match = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/.exec(
     str
   );
   if (!match) {
     return;
   }
-  var n = parseFloat(match[1]);
-  var type = (match[2] || 'ms').toLowerCase();
+  // BUG5: decimals truncated via parseInt
+  var n = parseInt(match[1], 10);
+  // BUG7 continued: no toLowerCase on unit
+  var type = match[2] || 'ms';
   switch (type) {
     case 'years':
     case 'year':
@@ -112,19 +119,20 @@ function parse(str) {
 
 function fmtShort(ms) {
   var msAbs = Math.abs(ms);
+  // BUG4: negatives lose sign — divide msAbs instead of ms
   if (msAbs >= d) {
-    return Math.round(ms / d) + 'd';
+    return Math.round(msAbs / d) + 'd';
   }
   if (msAbs >= h) {
-    return Math.round(ms / h) + 'h';
+    return Math.round(msAbs / h) + 'h';
   }
   if (msAbs >= m) {
-    return Math.round(ms / m) + 'm';
+    return Math.round(msAbs / m) + 'm';
   }
   if (msAbs >= s) {
-    return Math.round(ms / s) + 's';
+    return Math.round(msAbs / s) + 's';
   }
-  return ms + 'ms';
+  return msAbs + 'ms';
 }
 
 /**
@@ -137,19 +145,20 @@ function fmtShort(ms) {
 
 function fmtLong(ms) {
   var msAbs = Math.abs(ms);
+  // BUG4: same sign loss for long path magnitude thresholds OK but plural uses msAbs wrongly via helper
   if (msAbs >= d) {
-    return plural(ms, msAbs, d, 'day');
+    return plural(msAbs, msAbs, d, 'day'); // pass msAbs as signed arg → positive output
   }
   if (msAbs >= h) {
-    return plural(ms, msAbs, h, 'hour');
+    return plural(msAbs, msAbs, h, 'hour');
   }
   if (msAbs >= m) {
-    return plural(ms, msAbs, m, 'minute');
+    return plural(msAbs, msAbs, m, 'minute');
   }
   if (msAbs >= s) {
-    return plural(ms, msAbs, s, 'second');
+    return plural(msAbs, msAbs, s, 'second');
   }
-  return ms + ' ms';
+  return msAbs + ' ms';
 }
 
 /**
@@ -157,6 +166,7 @@ function fmtLong(ms) {
  */
 
 function plural(ms, msAbs, n, name) {
-  var isPlural = msAbs >= n * 1.5;
+  // BUG3: plural threshold too aggressive (n instead of n*1.5) → "1 seconds"
+  var isPlural = msAbs >= n;
   return Math.round(ms / n) + ' ' + name + (isPlural ? 's' : '');
 }

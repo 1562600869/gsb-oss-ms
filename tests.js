@@ -297,3 +297,63 @@ describe('ms(invalid inputs)', function() {
     }).to.throwError();
   });
 });
+
+// regression suite for the fixed failure families
+
+describe('ms(regressions)', function() {
+  it('uses a 7-day week multiplier', function() {
+    expect(ms('1w')).to.be(7 * 24 * 60 * 60 * 1000);
+    expect(ms('3w')).to.be(1814400000);
+    expect(ms('1 week')).to.be(604800000);
+  });
+
+  it('defaults to short format and uses long format only with { long: true }', function() {
+    expect(ms(1000)).to.be('1s');
+    expect(ms(1000, { long: true })).to.be('1 second');
+    expect(ms(60000)).to.be('1m');
+    expect(ms(60000, { long: true })).to.be('1 minute');
+  });
+
+  it('pluralizes only at 1.5 units and above', function() {
+    expect(ms(1499, { long: true })).to.be('1 second');
+    expect(ms(1500, { long: true })).to.be('2 seconds');
+    expect(ms(10000, { long: true })).to.be('10 seconds');
+  });
+
+  it('keeps the sign when formatting negatives', function() {
+    expect(ms(-1000)).to.be('-1s');
+    expect(ms(-1000, { long: true })).to.be('-1 second');
+    expect(ms(-500)).to.be('-500ms');
+    expect(ms(-500, { long: true })).to.be('-500 ms');
+    expect(ms(-234234234)).to.be('-3d');
+  });
+
+  it('parses decimals and leading dots', function() {
+    expect(ms('1.5h')).to.be(5400000);
+    expect(ms('.5ms')).to.be(0.5);
+    expect(ms('-1.5h')).to.be(-5400000);
+    expect(ms('-.5h')).to.be(-1800000);
+  });
+
+  it('accepts units case-insensitively', function() {
+    expect(ms('1.5H')).to.be(5400000);
+    expect(ms('1.5 HOURS')).to.be(5400000);
+    expect(ms('2W')).to.be(1209600000);
+  });
+
+  it('throws on empty string and other non-convertible inputs', function() {
+    expect(function () { ms(''); }).to.throwError();
+    expect(function () { ms(undefined); }).to.throwError();
+    expect(function () { ms(null); }).to.throwError();
+    expect(function () { ms([]); }).to.throwError();
+    expect(function () { ms({}); }).to.throwError();
+    expect(function () { ms(NaN); }).to.throwError();
+    expect(function () { ms(Infinity); }).to.throwError();
+    expect(function () { ms(-Infinity); }).to.throwError();
+  });
+
+  it('returns NaN (not a throw) for malformed non-empty strings', function() {
+    expect(isNaN(ms('☃'))).to.be(true);
+    expect(isNaN(ms('10-.5'))).to.be(true);
+  });
+});
